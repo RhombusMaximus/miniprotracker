@@ -1,0 +1,9 @@
+node_modules/
+out.f32
+out.wav
+ref-demo.f32
+ch0.f32
+ch1.f32
+ch2.f32
+ch3.f32
+*.log

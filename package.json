@@ -1,0 +1,17 @@
+{
+  "name": "miniprotracker",
+  "version": "0.1.0",
+  "description": "A minimal ProTracker (.mod) player in pure JavaScript - no dependencies, no WASM.",
+  "main": "src/protracker.js",
+  "scripts": {
+    "test": "node --test tests/parse.test.mjs",
+    "render": "node tools/render.mjs",
+    "validate": "node tools/validate.mjs"
+  },
+  "keywords": ["protracker", "mod", "tracker", "amiga", "chiptune", "player", "audio"],
+  "license": "MIT",
+  "files": ["src", "demo", "tools", "tests", "README.md", "LICENSE"],
+  "devDependencies": {
+    "@audio/decode-mod": "^1.0.0"
+  }
+}

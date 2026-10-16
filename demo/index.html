@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>miniprotracker — ProTracker .mod player</title>
+<style>
+  body { background: #05070e; color: #cfe0ff; font: 14px/1.6 monospace; max-width: 720px; margin: 2rem auto; padding: 0 1rem; }
+  h1 { color: #7fd4ff; font-size: 1.3rem; }
+  a { color: #7fd4ff; }
+  .drop { border: 1px dashed #2a3450; padding: 2rem; text-align: center; margin: 1rem 0; border-radius: 6px; }
+  .drop.hover { border-color: #7fd4ff; background: #0a1220; }
+  button { background: #12203a; color: #cfe0ff; border: 1px solid #2a3450; padding: 0.5rem 1.4rem; font: inherit; cursor: pointer; border-radius: 4px; }
+  button:disabled { opacity: 0.4; cursor: default; }
+  canvas { width: 100%; height: 120px; background: #04060c; border: 1px solid #1a2233; border-radius: 4px; margin: 1rem 0; }
+  .meta { color: #55688a; font-size: 0.85rem; }
+</style>
+</head>
+<body>
+<h1>miniprotracker</h1>
+<p>A minimal ProTracker (.mod) player in pure JavaScript. Drop a module below or load the bundled demo. Rendering happens entirely offline via <code>ProTracker.render()</code>, then plays through WebAudio.</p>
+
+<div class="drop" id="drop">drop a .mod file here — or <button id="demo">load demo.mod</button></div>
+
+<div>
+  <button id="play" disabled>play</button>
+  <button id="stop" disabled>stop</button>
+  <span class="meta" id="meta"></span>
+</div>
+<canvas id="viz" width="720" height="120"></canvas>
+<p class="meta">MIT license. <a href="https://github.com/RhombusMaximus/miniprotracker">source on GitHub</a>.</p>
+
+<script src="../src/protracker.js"></script>
+<script>
+(function () {
+  var drop = document.getElementById('drop');
+  var playBtn = document.getElementById('play');
+  var stopBtn = document.getElementById('stop');
+  var meta = document.getElementById('meta');
+  var viz = document.getElementById('viz');
+  var vg = viz.getContext('2d');
+  var mod = null;
+  var rendered = null;
+  var ctx = null;
+  var src = null;
+
+  function load(bytes, name) {
+    stop();
+    try {
+      mod = ProTracker.parse(bytes);
+    } catch (e) {
+      meta.textContent = 'parse failed: ' + e.message;
+      return;
+    }
+    var t0 = performance.now();
+    rendered = ProTracker.render(mod, { loops: 4, maxSeconds: 600 });
+    meta.textContent = name + ' — ' + mod.channels + ' channels, ' +
+      mod.patterns.length + ' patterns, ' + mod.songLength + ' orders — rendered ' +
+      rendered.duration.toFixed(1) + 's in ' + (performance.now() - t0).toFixed(0) + 'ms';
+    playBtn.disabled = false;
+    drawFrame();
+  }
+
+  function ensureCtx() {
+    if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
+    if (ctx.state === 'suspended') ctx.resume();
+    return ctx;
+  }
+
+  function play() {
+    if (!rendered) return;
+    stop();
+    var ac = ensureCtx();
+    var buf = ac.createBuffer(1, rendered.pcm.length, rendered.sampleRate);
+    buf.copyToChannel(rendered.pcm, 0);
+    src = ac.createBufferSource();
+    src.buffer = buf;
+    src.loop = true;
+    src.connect(ac.destination);
+    src.start();
+    stopBtn.disabled = false;
+  }
+
+  function stop() {
+    if (src) { try { src.stop(); } catch (e) {} src = null; }
+    stopBtn.disabled = true;
+  }
+
+  function drawFrame() {
+    vg.fillStyle = '#04060c';
+    vg.fillRect(0, 0, viz.width, viz.height);
+    if (rendered) {
+      // draw a waveform slice of the first loop
+      var step = Math.max(1, Math.floor(rendered.pcm.length / viz.width));
+      vg.strokeStyle = '#7fd4ff';
+      vg.beginPath();
+      for (var x = 0; x < viz.width; x++) {
+        var v = rendered.pcm[x * step] * 60;
+        if (x === 0) vg.moveTo(x, 60 - v); else vg.lineTo(x, 60 - v);
+      }
+      vg.stroke();
+    }
+    requestAnimationFrame(function () {
+      // cheap static viz; keeps the page silent and light
+    });
+  }
+
+  playBtn.addEventListener('click', play);
+  stopBtn.addEventListener('click', stop);
+  document.getElementById('demo').addEventListener('click', function () {
+    fetch('demo.mod').then(function (r) { return r.arrayBuffer(); })
+      .then(function (b) { load(new Uint8Array(b), 'demo.mod'); });
+  });
+
+  ['dragenter', 'dragover'].forEach(function (ev) {
+    drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.add('hover'); });
+  });
+  ['dragleave', 'drop'].forEach(function (ev) {
+    drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.remove('hover'); });
+  });
+  drop.addEventListener('drop', function (e) {
+    var f = e.dataTransfer.files[0];
+    if (!f) return;
+    var r = new FileReader();
+    r.onload = function () { load(new Uint8Array(r.result), f.name); };
+    r.readAsArrayBuffer(f);
+  });
+})();
+</script>
+</body>
+</html>
